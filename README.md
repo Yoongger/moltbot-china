@@ -6,6 +6,10 @@
 
 > 🚧 **即将支持**：直接通过 `npm install @moltbot-china/dingtalk` 安装，无需手动复制文件和修改配置。
 
+## 演示
+
+![钉钉机器人演示](doc/images/dingtalk-demo.gif)
+
 ## 支持平台
 
 | 平台 | 状态 | 插件 |
