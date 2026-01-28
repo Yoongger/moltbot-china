@@ -1,0 +1,49 @@
+{
+  "name": "@moltbot-china/dingtalk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Moltbot DingTalk channel plugin",
+  "license": "MIT",
+  "files": [
+    "index.ts",
+    "src",
+    "moltbot.plugin.json"
+  ],
+  "moltbot": {
+    "extensions": ["./index.ts"],
+    "channel": {
+      "id": "dingtalk",
+      "label": "DingTalk",
+      "selectionLabel": "DingTalk (钉钉)",
+      "docsPath": "/channels/dingtalk",
+      "blurb": "钉钉企业消息",
+      "aliases": ["ding"],
+      "order": 71
+    },
+    "install": {
+      "npmSpec": "@moltbot-china/dingtalk",
+      "localPath": ".",
+      "defaultChoice": "npm"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@moltbot-china/shared": "workspace:*",
+    "dingtalk-stream": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "moltbot": "^1.0.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "moltbot": ">=1.0.0"
+  },
+  "bundledDependencies": [
+    "@moltbot-china/shared"
+  ]
+}

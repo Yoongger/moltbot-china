@@ -1,25 +1,25 @@
 {
   "name": "moltbot-china",
   "version": "0.1.0",
-  "description": "Moltbot extensions for China IM platforms (DingTalk, WeCom, Feishu)",
+  "description": "Moltbot extensions for China IM platforms (DingTalk, WeCom, Feishu, QQ)",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "clean": "npm run clean --workspaces --if-present",
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "build:shared": "pnpm -F @moltbot-china/shared build",
+    "build:dingtalk": "pnpm -F @moltbot-china/dingtalk build",
+    "clean": "pnpm -r clean",
     "lint": "oxlint .",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "moltbot",
-    "clawdbot",
     "dingtalk",
     "wecom",
     "feishu",
     "lark",
+    "qq",
     "chatbot"
   ],
   "author": "BytePioneer-AI",
@@ -35,5 +35,6 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  }
+  },
+  "packageManager": "pnpm@9.0.0"
 }
