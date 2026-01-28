@@ -3,7 +3,6 @@
  * 
  * 使用 dingtalk-stream SDK 建立持久连接接收消息
  * 
- * Requirements: 3.1, 3.3, 3.4, 3.5
  */
 
 import { DWClient, TOPIC_ROBOT, EventAck } from "dingtalk-stream";
@@ -11,6 +10,14 @@ import { createDingtalkClientFromConfig } from "./client.js";
 import { handleDingtalkMessage } from "./bot.js";
 import type { DingtalkConfig } from "./config.js";
 import type { DingtalkRawMessage } from "./types.js";
+
+function hashText(input: string): string {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash) ^ input.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16);
+}
 
 /**
  * Monitor 配置选项
@@ -60,6 +67,12 @@ const DEDUP_CACHE_TTL = 5 * 60 * 1000;
 /** 去重缓存条目（带时间戳） */
 const processedMessageTimestamps = new Map<string, number>();
 
+/** 短 TTL 内容签名去重（毫秒） */
+const SIGNATURE_TTL_MS = 70 * 1000;
+
+/** 内容签名缓存条目（带时间戳） */
+const recentSignatureTimestamps = new Map<string, number>();
+
 /**
  * 清理过期的去重缓存条目
  */
@@ -71,6 +84,24 @@ function cleanupDedupCache(): void {
       processedMessageTimestamps.delete(messageId);
     }
   }
+}
+
+function cleanupSignatureCache(now: number): void {
+  for (const [key, timestamp] of recentSignatureTimestamps) {
+    if (now - timestamp > SIGNATURE_TTL_MS) {
+      recentSignatureTimestamps.delete(key);
+    }
+  }
+}
+
+function isSignatureDuplicate(signature: string, now: number): boolean {
+  cleanupSignatureCache(now);
+  const lastSeen = recentSignatureTimestamps.get(signature);
+  if (lastSeen && now - lastSeen < SIGNATURE_TTL_MS) {
+    return true;
+  }
+  recentSignatureTimestamps.set(signature, now);
+  return false;
 }
 
 /**
@@ -103,6 +134,13 @@ function markMessageProcessed(messageId: string): void {
   }
   processedMessageIds.add(messageId);
   processedMessageTimestamps.set(messageId, Date.now());
+}
+
+function touchDedupCache(now: number): void {
+  if (processedMessageIds.size > 0) {
+    cleanupDedupCache();
+  }
+  cleanupSignatureCache(now);
 }
 
 /**
@@ -220,14 +258,41 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
             rawMessage.streamMessageId = res.headers.messageId;
           }
 
+          const content =
+            (rawMessage.msgtype === "text" ? rawMessage.text?.content : undefined) ??
+            rawMessage.content?.recognition ??
+            "";
+          const contentTrimmed = content.trim();
+          const contentLen = contentTrimmed.length;
+          const contentHash = hashText(`${rawMessage.msgtype}:${contentTrimmed}`);
+
+          log(
+            `[dingtalk] inbound message: streamId=${rawMessage.streamMessageId ?? "none"} sender=${rawMessage.senderId} convo=${rawMessage.conversationId} type=${rawMessage.msgtype} len=${contentLen} hash=${contentHash}`,
+          );
+
+          const now = Date.now();
+          touchDedupCache(now);
+
           // Build dedupe key (prefer Stream message id).
           const dedupeId = rawMessage.streamMessageId
             ? `${accountId}:${rawMessage.streamMessageId}`
             : `${accountId}:${rawMessage.conversationId}_${rawMessage.senderId}_${rawMessage.text?.content?.slice(0, 50) ?? rawMessage.msgtype}`;
 
+          log(`[dingtalk] dedupe key: ${dedupeId.slice(0, 80)}`);
+
           // Skip if already processed.
           if (isMessageProcessed(dedupeId)) {
-            log(`[dingtalk] duplicate message detected, skipping (id=${dedupeId.slice(0, 30)}...)`);
+            log(
+              `[dingtalk] duplicate message detected, skipping (id=${dedupeId.slice(0, 80)}, streamId=${rawMessage.streamMessageId ?? "none"}, hash=${contentHash})`,
+            );
+            return EventAck.SUCCESS;
+          }
+
+          const signature = `${accountId}:${rawMessage.conversationId}:${rawMessage.senderId}:${contentHash}`;
+          if (isSignatureDuplicate(signature, now)) {
+            log(
+              `[dingtalk] duplicate signature detected, skipping (signature=${signature.slice(0, 100)}, ttlMs=${SIGNATURE_TTL_MS})`,
+            );
             return EventAck.SUCCESS;
           }
 
@@ -319,4 +384,5 @@ export function getCurrentAccountId(): string | null {
 export function clearDedupCache(): void {
   processedMessageIds.clear();
   processedMessageTimestamps.clear();
+  recentSignatureTimestamps.clear();
 }

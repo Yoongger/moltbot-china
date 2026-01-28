@@ -3,7 +3,6 @@
  * 
  * Feature: dingtalk-integration
  * Property 2: 消息解析正确性
- * Validates: Requirements 4.1, 4.2, 4.3, 4.4
  */
 
 import { describe, it, expect } from "vitest";

@@ -3,7 +3,6 @@
  * 
  * Feature: dingtalk-integration
  * Property 5: Token 缓存行为
- * Validates: Requirements 8.2
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";

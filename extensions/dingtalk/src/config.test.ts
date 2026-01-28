@@ -3,7 +3,6 @@
  * 
  * Feature: dingtalk-integration
  * Property 1: 配置 Schema 验证
- * Validates: Requirements 1.4, 2.3, 2.4
  */
 
 import { describe, it, expect } from "vitest";

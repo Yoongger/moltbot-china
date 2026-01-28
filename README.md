@@ -4,6 +4,8 @@
 
 > ⭐ 如果这个项目对你有帮助，请给我们一个 Star！⭐ 您的支持是我们持续改进的动力
 
+> 🚧 **即将支持**：直接通过 `npm install @moltbot-china/dingtalk` 安装，无需手动复制文件和修改配置。
+
 ## 支持平台
 
 | 平台 | 状态 | 插件 |
@@ -25,7 +27,8 @@ pnpm install
 
 > 📖 **[钉钉企业注册指南](doc/guides/dingtalk/configuration.md)** — 无需任何材料，最快 5 分钟完成配置
 
-在 Moltbot 配置文件中添加以下内容：
+
+在 Moltbot 配置文件 `/root/.clawdbot/clawdbot.json` 中添加钉钉渠道配置：
 
 ```json
 {
