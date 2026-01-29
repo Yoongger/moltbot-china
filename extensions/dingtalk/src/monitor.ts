@@ -10,6 +10,7 @@ import { createDingtalkClientFromConfig } from "./client.js";
 import { handleDingtalkMessage } from "./bot.js";
 import type { DingtalkConfig } from "./config.js";
 import type { DingtalkRawMessage } from "./types.js";
+import { createLogger, type Logger } from "./logger.js";
 
 function hashText(input: string): string {
   let hash = 5381;
@@ -158,15 +159,17 @@ function touchDedupCache(now: number): void {
 export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): Promise<void> {
   const { config, runtime, abortSignal, accountId = "default" } = opts;
   
-  const log = runtime?.log ?? console.log;
-  const error = runtime?.error ?? console.error;
+  const logger: Logger = createLogger("dingtalk", {
+    log: runtime?.log,
+    error: runtime?.error,
+  });
   
   // Single-account: only one active connection allowed.
   if (currentClient) {
     if (currentAccountId && currentAccountId !== accountId) {
       throw new Error(`DingTalk already running for account ${currentAccountId}`);
     }
-    log(`[dingtalk] existing connection for account ${accountId} is active, reusing monitor`);
+    logger.debug(`existing connection for account ${accountId} is active, reusing monitor`);
     if (currentPromise) {
       return currentPromise;
     }
@@ -184,14 +187,14 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
   try {
     client = createDingtalkClientFromConfig(dingtalkCfg);
   } catch (err) {
-    error(`[dingtalk] failed to create client: ${String(err)}`);
+    logger.error(`failed to create client: ${String(err)}`);
     throw err;
   }
 
   currentClient = client;
   currentAccountId = accountId;
 
-  log(`[dingtalk] starting Stream connection for account ${accountId}...`);
+  logger.info(`starting Stream connection for account ${accountId}...`);
 
   currentPromise = new Promise<void>((resolve, reject) => {
     let stopped = false;
@@ -207,7 +210,7 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
       try {
         client.disconnect();
       } catch (err) {
-        error(`[dingtalk] failed to disconnect client: ${String(err)}`);
+        logger.error(`failed to disconnect client: ${String(err)}`);
       }
     };
 
@@ -229,13 +232,13 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
 
     // Handle abort signal.
     const handleAbort = () => {
-      log("[dingtalk] abort signal received, stopping Stream client");
+      logger.info("abort signal received, stopping Stream client");
       finalizeResolve();
     };
 
     // Expose a stop hook for manual shutdown.
     currentStop = () => {
-      log("[dingtalk] stop requested, stopping Stream client");
+      logger.info("stop requested, stopping Stream client");
       finalizeResolve();
     };
 
@@ -271,8 +274,8 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
             ? hashText(`${rawMessage.streamMessageId}:${rawMessage.msgtype}:${contentTrimmed}`)
             : contentHash;
 
-          log(
-            `[dingtalk] inbound message: streamId=${rawMessage.streamMessageId ?? "none"} sender=${rawMessage.senderId} convo=${rawMessage.conversationId} type=${rawMessage.msgtype} len=${contentLen} hash=${transportHash}`,
+          logger.debug(
+            `inbound raw: streamId=${rawMessage.streamMessageId ?? "none"} sender=${rawMessage.senderId} convo=${rawMessage.conversationId} type=${rawMessage.msgtype} len=${contentLen} hash=${transportHash}`,
           );
 
           const now = Date.now();
@@ -283,20 +286,20 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
             ? `${accountId}:${rawMessage.streamMessageId}`
             : `${accountId}:${rawMessage.conversationId}_${rawMessage.senderId}_${rawMessage.text?.content?.slice(0, 50) ?? rawMessage.msgtype}`;
 
-          log(`[dingtalk] dedupe key: ${dedupeId.slice(0, 80)}`);
+          logger.debug(`dedupe key: ${dedupeId.slice(0, 80)}`);
 
           // Skip if already processed.
           if (isMessageProcessed(dedupeId)) {
-            log(
-              `[dingtalk] duplicate message detected, skipping (id=${dedupeId.slice(0, 80)}, streamId=${rawMessage.streamMessageId ?? "none"}, hash=${contentHash})`,
+            logger.debug(
+              `duplicate message detected, skipping (id=${dedupeId.slice(0, 80)}, streamId=${rawMessage.streamMessageId ?? "none"}, hash=${contentHash})`,
             );
             return EventAck.SUCCESS;
           }
 
           const signature = `${accountId}:${rawMessage.conversationId}:${rawMessage.senderId}:${contentHash}`;
           if (isSignatureDuplicate(signature, now)) {
-            log(
-              `[dingtalk] duplicate signature detected, skipping (signature=${signature.slice(0, 100)}, ttlMs=${SIGNATURE_TTL_MS})`,
+            logger.debug(
+              `duplicate signature detected, skipping (signature=${signature.slice(0, 100)}, ttlMs=${SIGNATURE_TTL_MS})`,
             );
             return EventAck.SUCCESS;
           }
@@ -304,14 +307,17 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
           // Mark before processing to prevent concurrent duplicates.
           markMessageProcessed(dedupeId);
 
-          log(`[dingtalk] received message from ${rawMessage.senderId} (type=${rawMessage.msgtype})`);
+          // 关键业务日志：收到消息
+          const senderName = rawMessage.senderNick ?? rawMessage.senderId;
+          const textPreview = contentTrimmed.slice(0, 50);
+          logger.info(`Inbound: from=${senderName} text="${textPreview}${contentTrimmed.length > 50 ? "..." : ""}"`);
           
           // Debug: log atUsers for mention detection
           if (rawMessage.atUsers) {
-            log(`[dingtalk] atUsers: ${JSON.stringify(rawMessage.atUsers)}`);
+            logger.debug(`atUsers: ${JSON.stringify(rawMessage.atUsers)}`);
           }
           if (rawMessage.robotCode) {
-            log(`[dingtalk] robotCode: ${rawMessage.robotCode}`);
+            logger.debug(`robotCode: ${rawMessage.robotCode}`);
           }
 
           // Process asynchronously; ACK immediately.
@@ -319,15 +325,15 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
             cfg: config,
             raw: rawMessage,
             accountId,
-            log,
-            error,
+            log: (msg: string) => logger.info(msg.replace(/^\[dingtalk\]\s*/, "")),
+            error: (msg: string) => logger.error(msg.replace(/^\[dingtalk\]\s*/, "")),
           }).catch((err) => {
-            error(`[dingtalk] error handling message: ${String(err)}`);
+            logger.error(`error handling message: ${String(err)}`);
           });
 
           return EventAck.SUCCESS;
         } catch (err) {
-          error(`[dingtalk] error handling message: ${String(err)}`);
+          logger.error(`error handling message: ${String(err)}`);
           return EventAck.SUCCESS;
         }
       });
@@ -335,9 +341,9 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
       // Start Stream connection.
       client.connect();
 
-      log("[dingtalk] Stream client connected");
+      logger.info("Stream client connected");
     } catch (err) {
-      error(`[dingtalk] failed to start Stream connection: ${String(err)}`);
+      logger.error(`failed to start Stream connection: ${String(err)}`);
       finalizeReject(err);
     }
   });

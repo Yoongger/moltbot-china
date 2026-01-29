@@ -107,6 +107,19 @@ clawdbot plugins install -l ./extensions/dingtalk
 moltbot plugins install -l ./extensions/dingtalk
 ```
 
+配置中添加:
+
+```
+  "plugins": {
+    "load": {
+      "paths": ["/path/to/moltbot-china/extensions/dingtalk"]
+    },
+    "entries": {
+      "dingtalk": { "enabled": true }
+    }
+  }
+```
+
 ## License
 
 MIT

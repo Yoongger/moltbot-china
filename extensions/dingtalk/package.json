@@ -55,7 +55,11 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "release": "npm run build && npm publish",
+    "release:patch": "npm run build && npm version patch && npm publish",
+    "release:minor": "npm run build && npm version minor && npm publish",
+    "release:major": "npm run build && npm version major && npm publish"
   },
   "dependencies": {
     "dingtalk-stream": "^2.1.4"

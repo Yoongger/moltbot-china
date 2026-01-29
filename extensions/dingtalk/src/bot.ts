@@ -9,6 +9,7 @@ import type { DingtalkConfig } from "./config.js";
 import { getDingtalkRuntime, isDingtalkRuntimeInitialized } from "./runtime.js";
 import { sendMessageDingtalk } from "./send.js";
 import { sendMediaDingtalk } from "./media.js";
+import { createLogger, type Logger } from "./logger.js";
 
 /**
  * 策略检查结果
@@ -287,15 +288,19 @@ export async function handleDingtalkMessage(params: {
     cfg,
     raw,
     accountId = "default",
-    log = console.log,
-    error = console.error,
   } = params;
+  
+  // 创建日志器
+  const logger: Logger = createLogger("dingtalk", {
+    log: params.log,
+    error: params.error,
+  });
   
   // 解析消息
   const ctx = parseDingtalkMessage(raw);
   const isGroup = ctx.chatType === "group";
   
-  log(`[dingtalk] received message from ${ctx.senderId} in ${ctx.conversationId} (${ctx.chatType})`);
+  logger.debug(`received message from ${ctx.senderId} in ${ctx.conversationId} (${ctx.chatType})`);
   
   // 获取钉钉配置
   const dingtalkCfg = (cfg as Record<string, unknown>)?.channels as Record<string, unknown> | undefined;
@@ -316,7 +321,7 @@ export async function handleDingtalkMessage(params: {
     });
     
     if (!policyResult.allowed) {
-      log(`[dingtalk] ${policyResult.reason}`);
+      logger.debug(`policy rejected: ${policyResult.reason}`);
       return;
     }
   } else {
@@ -330,14 +335,14 @@ export async function handleDingtalkMessage(params: {
     });
     
     if (!policyResult.allowed) {
-      log(`[dingtalk] ${policyResult.reason}`);
+      logger.debug(`policy rejected: ${policyResult.reason}`);
       return;
     }
   }
   
   // 检查运行时是否已初始化
   if (!isDingtalkRuntimeInitialized()) {
-    log(`[dingtalk] runtime not initialized, skipping dispatch`);
+    logger.warn("runtime not initialized, skipping dispatch");
     return;
   }
   
@@ -347,17 +352,17 @@ export async function handleDingtalkMessage(params: {
     
     // 检查必要的 API 是否存在
     if (!core.channel?.routing?.resolveAgentRoute) {
-      log(`[dingtalk] core.channel.routing.resolveAgentRoute not available, skipping dispatch`);
+      logger.debug("core.channel.routing.resolveAgentRoute not available, skipping dispatch");
       return;
     }
     
     if (!core.channel?.reply?.dispatchReplyFromConfig) {
-      log(`[dingtalk] core.channel.reply.dispatchReplyFromConfig not available, skipping dispatch`);
+      logger.debug("core.channel.reply.dispatchReplyFromConfig not available, skipping dispatch");
       return;
     }
 
     if (!core.channel?.reply?.createReplyDispatcher && !core.channel?.reply?.createReplyDispatcherWithTyping) {
-      log(`[dingtalk] core.channel.reply dispatcher factory not available, skipping dispatch`);
+      logger.debug("core.channel.reply dispatcher factory not available, skipping dispatch");
       return;
     }
     
@@ -381,7 +386,7 @@ export async function handleDingtalkMessage(params: {
 
     const dingtalkCfg = channelCfg;
     if (!dingtalkCfg) {
-      log(`[dingtalk] channel config missing, skipping dispatch`);
+      logger.warn("channel config missing, skipping dispatch");
       return;
     }
 
@@ -443,7 +448,7 @@ export async function handleDingtalkMessage(params: {
           },
           humanDelay,
           onError: (err: unknown, info: { kind: string }) => {
-            error(`[dingtalk] ${info.kind} reply failed: ${String(err)}`);
+            logger.error(`${info.kind} reply failed: ${String(err)}`);
           },
         })
       : {
@@ -453,7 +458,7 @@ export async function handleDingtalkMessage(params: {
             },
             humanDelay,
             onError: (err: unknown, info: { kind: string }) => {
-              error(`[dingtalk] ${info.kind} reply failed: ${String(err)}`);
+              logger.error(`${info.kind} reply failed: ${String(err)}`);
             },
           }),
           replyOptions: {},
@@ -461,11 +466,11 @@ export async function handleDingtalkMessage(params: {
         };
 
     if (!dispatcherResult.dispatcher) {
-      log(`[dingtalk] dispatcher not available, skipping dispatch`);
+      logger.debug("dispatcher not available, skipping dispatch");
       return;
     }
 
-    log(`[dingtalk] dispatching to agent (session=${route.sessionKey})`);
+    logger.debug(`dispatching to agent (session=${route.sessionKey})`);
 
     // 分发消息
     const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
@@ -477,8 +482,8 @@ export async function handleDingtalkMessage(params: {
 
     dispatcherResult.markDispatchIdle?.();
 
-    log(`[dingtalk] dispatch complete (queuedFinal=${queuedFinal}, replies=${counts.final})`);
+    logger.debug(`dispatch complete (queuedFinal=${queuedFinal}, replies=${counts.final})`);
   } catch (err) {
-    error(`[dingtalk] failed to dispatch message: ${String(err)}`);
+    logger.error(`failed to dispatch message: ${String(err)}`);
   }
 }
