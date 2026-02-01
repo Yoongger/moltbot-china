@@ -168,19 +168,22 @@ export class GatewayWsClient {
     this.disconnected = true;
     this.ws = null;
     this.flushPending(new Error("connection closed"));
-    
+
     // 通知所有 chatStream 监听器连接已断开
+    // 改进：使用 error 状态让 chatStream 决定是否优雅降级
     for (const [runId, listener] of this.chatListeners) {
+      this.logger.debug(`[gateway-ws] notifying listener ${runId} of connection close`);
       listener({
         runId,
         sessionKey: "",
         seq: -1,
         state: "error",
-        errorMessage: "WebSocket connection closed",
+        errorMessage: "WebSocket connection closed unexpectedly",
       });
     }
 
     if (!this.closed) {
+      this.logger.info("[gateway-ws] connection closed, scheduling reconnect");
       this.scheduleReconnect();
     }
   }
@@ -237,6 +240,8 @@ export class GatewayWsClient {
 
   /**
    * 发送聊天消息并返回流式响应
+   *
+   * 改进：连接断开时优雅降级，返回已累积的数据而不是抛出错误
    */
   async *chatStream(params: {
     sessionKey: string;
@@ -247,6 +252,7 @@ export class GatewayWsClient {
     let accumulated = "";
     let done = false;
     let error: Error | null = null;
+    let disconnectedWithData = false; // 标记：连接断开但有数据
     const resolvers: Array<() => void> = [];
 
     // 注册 chat 事件监听
@@ -265,8 +271,15 @@ export class GatewayWsClient {
       }
 
       if (evt.state === "error") {
-        error = new Error(evt.errorMessage ?? "chat error");
-        done = true;
+        // 改进：如果已有累积数据，不抛出错误，而是标记完成
+        if (accumulated.length > 0) {
+          this.logger.warn(`[gateway-ws] connection error with ${accumulated.length} chars accumulated, graceful finish`);
+          disconnectedWithData = true;
+          done = true;
+        } else {
+          error = new Error(evt.errorMessage ?? "chat error");
+          done = true;
+        }
       }
 
       // 唤醒等待的 yield
@@ -295,7 +308,8 @@ export class GatewayWsClient {
           }
         });
 
-        if (error) throw error;
+        // 改进：只有在没有累积数据时才抛出错误
+        if (error && accumulated.length === 0) throw error;
 
         // yield 新增的内容
         if (accumulated !== lastYielded) {
@@ -303,6 +317,17 @@ export class GatewayWsClient {
           if (delta) yield delta;
           lastYielded = accumulated;
         }
+      }
+
+      // 确保最后的数据被 yield
+      if (accumulated !== lastYielded) {
+        const delta = accumulated.slice(lastYielded.length);
+        if (delta) yield delta;
+      }
+
+      // 如果是断开连接但有数据的情况，记录日志
+      if (disconnectedWithData) {
+        this.logger.info(`[gateway-ws] stream completed with ${accumulated.length} chars (connection was interrupted)`);
       }
     } finally {
       this.chatListeners.delete(runId);
