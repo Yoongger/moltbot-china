@@ -163,8 +163,15 @@ export function resolveWecomAppAccount(params: { cfg: PluginConfig; accountId?: 
   const corpId = merged.corpId?.trim() || (isDefaultAccount ? process.env.WECOM_APP_CORP_ID?.trim() : undefined) || undefined;
   const corpSecret =
     merged.corpSecret?.trim() || (isDefaultAccount ? process.env.WECOM_APP_CORP_SECRET?.trim() : undefined) || undefined;
-  const agentId =
-    merged.agentId ?? (isDefaultAccount ? (process.env.WECOM_APP_AGENT_ID ? Number(process.env.WECOM_APP_AGENT_ID) : undefined) : undefined);
+  let envAgentId: number | undefined;
+  if (isDefaultAccount && process.env.WECOM_APP_AGENT_ID) {
+    const parsed = parseInt(process.env.WECOM_APP_AGENT_ID, 10);
+    if (!Number.isNaN(parsed)) {
+      envAgentId = parsed;
+    }
+  }
+
+  const agentId = merged.agentId ?? envAgentId;
 
   const configured = Boolean(token && encodingAESKey);
   const canSendActive = Boolean(corpId && corpSecret && agentId);

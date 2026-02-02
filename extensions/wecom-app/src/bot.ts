@@ -134,7 +134,8 @@ export async function dispatchWecomAppMessage(params: {
       conversationId: chatId,
       groupAllowFrom,
       requireMention,
-      mentionedBot: true,
+      // TODO: derive actual mention status from msg; default to false for safety
+      mentionedBot: false,
     });
 
     if (!policyResult.allowed) {

@@ -217,15 +217,15 @@ curl ifconfig.me
 
 ### 多账户配置
 
-如需配置多个自建应用，可以使用账户数组：
+如需配置多个自建应用，可以使用 accounts 对象（键为账户 ID）：
 
 ```json
 {
   "channels": {
     "wecom-app": {
       "enabled": true,
-      "accounts": [
-        {
+      "accounts": {
+        "app1": {
           "webhookPath": "/wecom-app-1",
           "token": "token-1",
           "encodingAESKey": "key-1",
@@ -233,7 +233,7 @@ curl ifconfig.me
           "corpSecret": "secret-1",
           "agentId": 1000002
         },
-        {
+        "app2": {
           "webhookPath": "/wecom-app-2",
           "token": "token-2",
           "encodingAESKey": "key-2",
@@ -241,7 +241,7 @@ curl ifconfig.me
           "corpSecret": "secret-2",
           "agentId": 1000003
         }
-      ]
+      }
     }
   }
 }

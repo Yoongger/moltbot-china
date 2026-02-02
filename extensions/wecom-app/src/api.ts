@@ -124,7 +124,7 @@ export async function getAccessToken(account: ResolvedWecomAppAccount): Promise<
   const resp = await fetch(url);
   const data = (await resp.json()) as { errcode?: number; errmsg?: string; access_token?: string };
 
-  if (data.errcode !== 0) {
+  if (data.errcode !== undefined && data.errcode !== 0) {
     throw new Error(`gettoken failed: ${data.errmsg ?? "unknown error"} (errcode=${data.errcode})`);
   }
 
@@ -207,6 +207,9 @@ export async function sendWecomAppMessage(
     };
   }
 
+  // NOTE: WeCom API requires access_token to be passed as a query parameter.
+  // This can expose the token in server logs, browser history, and referrer headers.
+  // Ensure that any logging of this URL redacts the access_token parameter.
   const resp = await fetch(
     `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${encodeURIComponent(token)}`,
     {
@@ -346,7 +349,7 @@ export async function uploadImageMedia(
 
   const data = (await resp.json()) as { errcode?: number; errmsg?: string; media_id?: string };
 
-  if (data.errcode !== 0) {
+  if (data.errcode !== undefined && data.errcode !== 0) {
     throw new Error(`Upload image failed: ${data.errmsg ?? "unknown error"} (errcode=${data.errcode})`);
   }
 

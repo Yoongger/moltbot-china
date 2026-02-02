@@ -159,14 +159,18 @@ function parseXmlBody(xml: string): Record<string, string> {
   const result: Record<string, string> = {};
   // 匹配 CDATA 格式: <Tag><![CDATA[value]]></Tag>
   const cdataRegex = /<(\w+)><!\[CDATA\[([\s\S]*?)\]\]><\/\1>/g;
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = cdataRegex.exec(xml)) !== null) {
-    result[match[1]!] = match[2]!;
+    const [, key, value] = match;
+    result[key!] = value!;
   }
   // 匹配简单格式: <Tag>value</Tag>
   const simpleRegex = /<(\w+)>([^<]*)<\/\1>/g;
   while ((match = simpleRegex.exec(xml)) !== null) {
-    if (!result[match[1]!]) result[match[1]!] = match[2]!;
+    const [, key, value] = match;
+    if (!result[key!]) {
+      result[key!] = value!;
+    }
   }
   return result;
 }
@@ -267,8 +271,8 @@ function parseWecomAppPlainMessage(raw: string): WecomAppInboundMessage {
       from: xmlData.FromUserName ? { userid: xmlData.FromUserName } : undefined,
       FromUserName: xmlData.FromUserName,
       ToUserName: xmlData.ToUserName,
-      CreateTime: xmlData.CreateTime,
-      AgentID: xmlData.AgentID,
+      CreateTime: xmlData.CreateTime ? Number(xmlData.CreateTime) : undefined,
+      AgentID: xmlData.AgentID ? Number(xmlData.AgentID) : undefined,
       // 事件类型
       Event: xmlData.Event,
     } as WecomAppInboundMessage;
