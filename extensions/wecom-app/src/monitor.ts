@@ -16,7 +16,7 @@ import {
 } from "./crypto.js";
 import { dispatchWecomAppMessage } from "./bot.js";
 import { tryGetWecomAppRuntime } from "./runtime.js";
-import { sendWecomAppMessage, stripMarkdown } from "./api.js";
+import { sendWecomAppMessage } from "./api.js";
 
 export type WecomAppRuntimeEnv = {
   log?: (message: string) => void;
@@ -595,36 +595,21 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
     const state = streams.get(streamId);
     if (state) state.started = true;
 
-    // 解析发送者信息用于主动发送
-    const senderId = msg.from?.userid?.trim() ?? (msg as { FromUserName?: string }).FromUserName?.trim();
-    const chatid = msg.chatid?.trim();
 
-     const hooks = {
-       onChunk: async (text: string) => {
-         const current = streams.get(streamId);
-         if (!current) return;
-         appendStreamContent(current, text);
-         target.statusSink?.({ lastOutboundAt: Date.now() });
 
-         // 如果支持主动发送，使用主动发送 API
-         if (target.account.canSendActive && (senderId || chatid)) {
-           try {
-             const formattedText = stripMarkdown(text);
-             const chunks = splitMessageByBytes(formattedText, 2048);
-             
-             // 逐段发送，避免超长被截断
-             for (const chunk of chunks) {
-               await sendWecomAppMessage(
-                 target.account,
-                 chatid ? { chatid } : { userId: senderId },
-                 chunk
-               );
-             }
-           } catch (err) {
-             logger.error(`failed to send active message: ${String(err)}`);
-           }
-         }
-       },
+      const hooks = {
+        onChunk: (text: string) => {
+          const current = streams.get(streamId);
+          if (!current) return;
+          appendStreamContent(current, text);
+          target.statusSink?.({ lastOutboundAt: Date.now() });
+
+          // NOTE: 企业微信消息顺序控制
+          // 由于企业微信需要 5 秒内返回 HTTP 响应，且主动发送和被动回复会竞争
+          // 为避免消息顺序错乱，这里不立即主动发送
+          // 而是在下方的 HTTP 响应中返回累积内容
+          // TODO: 未来可实现队列机制，先返回占位符，再通过 API 更新消息
+        },
       onError: (err: unknown) => {
         const current = streams.get(streamId);
         if (current) {
