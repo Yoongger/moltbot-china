@@ -190,6 +190,17 @@ openclaw config set channels.wecom-app.agentId 1000002
 > 更完整说明见：`doc/guides/wecom-app/configuration.md`
 
 
+#### QQ
+
+> ?? **[QQ 渠道配置指南](https://github.com/BytePioneer-AI/openclaw-china/blob/main/doc/guides/qqbot/configuration.md)**
+
+```bash
+openclaw config set channels.qqbot.enabled true
+openclaw config set channels.qqbot.appId your-app-id
+openclaw config set channels.qqbot.clientSecret your-app-secret
+openclaw config set channels.qqbot.markdownSupport true
+```
+
 #### 企业微信（智能机器人）
 
 > 企业微信智能机器人（API 模式）通过公网 HTTPS 回调接收消息，仅支持被动回复
@@ -208,17 +219,6 @@ openclaw config set channels.wecom.encodingAESKey your-43-char-encoding-aes-key
 - 如遇回调校验失败，先确认 Token/EncodingAESKey 与后台一致
 
 
-
-#### QQ
-
-> 📖 **[QQ 渠道配置指南](doc/guides/qqbot/configuration.md)**
-
-```bash
-openclaw config set channels.qqbot.enabled true
-openclaw config set channels.qqbot.appId your-app-id
-openclaw config set channels.qqbot.clientSecret your-app-secret
-openclaw config set channels.qqbot.markdownSupport true
-```
 
 #### 飞书
 
