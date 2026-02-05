@@ -80,11 +80,28 @@ wecom-app 现在会把入站媒体归档到：
 
 ### 3.2 回发录音（语音格式坑）
 - **推荐格式**：`.amr`（你收到的入站语音也通常是 amr）
-- `.wav` 在企业微信自建应用里经常无法作为“语音消息”发送（会 ok=false 或被拒绝）。
-  - 新版本插件会把 `.wav` **降级为文件发送**（至少能发出去）。
-  - 如需“语音气泡”展示：请把 wav 转 amr 后再发。
-  - 转码示例（ffmpeg）：
+- `.wav/.mp3` 在企业微信自建应用里经常无法作为“语音消息(voice)”发送。
 
+**自动兜底（新功能）**
+- 你可以开启 `voiceTranscode.enabled=true`：
+  - 系统存在 `ffmpeg` 时：遇到 wav/mp3 会 **自动转码为 amr** 再按 voice 发送
+  - 没有 `ffmpeg` 时：会 **自动降级为 file 发送**（保证可达）
+
+配置示例（openclaw.json）：
+```jsonc
+{
+  "channels": {
+    "wecom-app": {
+      "voiceTranscode": {
+        "enabled": true,
+        "prefer": "amr"
+      }
+    }
+  }
+}
+```
+
+**手动转码示例（ffmpeg）**
 ```bash
 ffmpeg -i in.wav -ar 8000 -ac 1 -c:a amr_nb out.amr
 ```

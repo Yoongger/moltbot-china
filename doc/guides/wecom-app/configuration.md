@@ -331,18 +331,37 @@ openclaw gateway restart
 - 建议：发送 `png/jpg`。
 - 如果你必须发 `svg`：把它当 **文件** 发（本插件已对 `.svg` 强制按文件发送，避免误判）。
 
-### Q: 为什么 WAV 语音发不出去（ok=false）？
+### Q: 为什么 WAV/MP3 语音发不出去（ok=false）？
 
-企业微信语音消息通常要求 `amr/speex` 等格式；`wav` 很常见会导致上传/发送失败。
+企业微信的“语音消息(voice)”通常要求 `amr/speex` 等格式；`wav/mp3` 很常见会导致上传/发送失败，或无法按语音气泡展示。
 
-- 建议：把 `wav` 转为 `amr` 后发送。
-- 示例（ffmpeg）：
+**推荐方案（自动兜底）**
+
+开启 `voiceTranscode.enabled=true` 后：
+
+- 系统存在 `ffmpeg`：遇到 wav/mp3 会 **自动转码为 amr** 再发送 voice
+- 没有 `ffmpeg`：会 **自动降级为 file 发送**（保证可达）
+
+配置示例（openclaw.json）：
+
+```jsonc
+{
+  "channels": {
+    "wecom-app": {
+      "voiceTranscode": {
+        "enabled": true,
+        "prefer": "amr"
+      }
+    }
+  }
+}
+```
+
+**手动转码（ffmpeg）**
 
 ```bash
 ffmpeg -i in.wav -ar 8000 -ac 1 -c:a amr_nb out.amr
 ```
-
-> 插件在检测到 `.wav` 时会输出更明确的 hint，方便定位。
 
 ### Q: 保存配置时提示验证失败？
 
